@@ -216,47 +216,127 @@
     return parts.join(" · ");
   }
 
-  // --- AI araç ön ayarları (gömülecek köken bilgisi) ---
+  // --- base64 + UUID (tohumlu RNG ile, stabil) ---
+  var B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  function base64(bytes) {
+    var out = "", i;
+    for (i = 0; i < bytes.length; i += 3) {
+      var b0 = bytes[i], b1 = bytes[i + 1], b2 = bytes[i + 2];
+      out += B64[b0 >> 2];
+      out += B64[((b0 & 3) << 4) | ((b1 || 0) >> 4)];
+      out += i + 1 < bytes.length ? B64[((b1 & 15) << 2) | ((b2 || 0) >> 6)] : "=";
+      out += i + 2 < bytes.length ? B64[b2 & 63] : "=";
+    }
+    return out;
+  }
+  function randBytes(rng, n) { var a = []; for (var i = 0; i < n; i++) a.push(Math.floor(rng() * 256)); return a; }
+  function uuidv4(rng) {
+    var h = "0123456789abcdef", s = "", i;
+    for (i = 0; i < 36; i++) {
+      if (i === 8 || i === 13 || i === 18 || i === 23) s += "-";
+      else if (i === 14) s += "4";
+      else if (i === 19) s += h[(Math.floor(rng() * 16) & 0x3) | 0x8];
+      else s += h[Math.floor(rng() * 16)];
+    }
+    return s;
+  }
+
   var TOOLS = {
-    grok: { tool: "Grok Imagine (xAI)", make: "xAI", model: "Aurora", software: "Grok Imagine v2 (xAI)" },
-    dalle: { tool: "DALL·3 (OpenAI)", make: "OpenAI", model: "dall-e-3", software: "OpenAI DALL-E 3" },
-    midjourney: { tool: "Midjourney", make: "Midjourney Inc.", model: "v6.1", software: "Midjourney v6.1" },
-    sd: { tool: "Stable Diffusion", make: "Stability AI", model: "SDXL 1.0", software: "AUTOMATIC1111 / Stable Diffusion" },
-    imagen: { tool: "Google Imagen", make: "Google", model: "imagen-3.0", software: "Google Imagen 3" },
-    firefly: { tool: "Adobe Firefly", make: "Adobe", model: "Firefly Image 3", software: "Adobe Firefly" },
+    grok: { name: "Grok Imagine (xAI)", real: true },
+    dalle: { name: "DALL·E 3 (OpenAI)", make: "OpenAI", model: "dall-e-3", software: "OpenAI DALL-E 3" },
+    midjourney: { name: "Midjourney v6.1", make: "Midjourney Inc.", model: "v6.1", software: "Midjourney v6.1" },
+    sd: { name: "Stable Diffusion XL", make: "Stability AI", model: "SDXL 1.0", software: "AUTOMATIC1111" },
+    imagen: { name: "Google Imagen 3", make: "Google", model: "imagen-3.0", software: "Google Imagen 3" },
+    firefly: { name: "Adobe Firefly", make: "Adobe", model: "Firefly Image 3", software: "Adobe Firefly" },
   };
 
-  // analiz + seçilen araçtan "AI üretmiş gibi" köken parametreleri üretir
+  function buildPrompt(features, rng) {
+    var subject = pick(rng, SUBJECTS), style = pick(rng, STYLES), adj = pick(rng, ADJ);
+    var moodBank = features.temp === "warm" ? MOODS_WARM : features.temp === "cool" ? MOODS_COOL : MOODS_NEUTRAL;
+    var mood = pick(rng, moodBank);
+    var light = features.brightness > 0.62 ? "soft natural light"
+      : features.brightness < 0.32 ? "dramatic low-key lighting" : "balanced lighting";
+    return adj + " " + subject + ", " + style + " style, " + mood + " atmosphere, " +
+      colorName(features.palette[0]) + " tones, " + light + ", highly detailed, sharp focus, 8k";
+  }
+
+  // analiz + seçilen araçtan "AI üretmiş gibi" köken SPEC'i üretir
   function provenance(features, toolKey, regenSeed) {
     var t = TOOLS[toolKey] || TOOLS.grok;
     var rng = mulberry32((features.seed ^ (regenSeed || 0) ^ 0x9e3779b9) >>> 0);
+    var W = features.width || 1024, H = features.height || 1024;
+    var prompt = buildPrompt(features, rng);
+    var seed = String((features.seed ^ (regenSeed || 0)) >>> 0);
 
-    var subject = pick(rng, SUBJECTS);
-    var style = pick(rng, STYLES);
-    var adj = pick(rng, ADJ);
-    var moodBank = features.temp === "warm" ? MOODS_WARM
-      : features.temp === "cool" ? MOODS_COOL : MOODS_NEUTRAL;
-    var mood = pick(rng, moodBank);
-    var domName = colorName(features.palette[0]);
-    var lightWord = features.brightness > 0.62 ? "soft natural light"
-      : features.brightness < 0.32 ? "dramatic low-key lighting" : "balanced lighting";
+    if (t.real) {
+      // ---- GROK: gerçek yapının birebir taklidi ----
+      // ImageDescription + UserComment + IPTC caption => "Signature: <base64>"
+      // Artist => üretim UUID'si. Make/Model/Software/XMP YOK.
+      var sig = base64(randBytes(rng, 160));          // ~160 baytlık imza (Grok ile aynı uzunluk)
+      var sigStr = "Signature: " + sig;
+      var uuid = uuidv4(rng);
+      return {
+        toolKey: toolKey, tool: t.name, real: true,
+        signature: sig, uuid: uuid, prompt: prompt, seed: seed,
+        fields: [
+          { label: "İmza (Signature)", value: sig.slice(0, 38) + "…", mono: true },
+          { label: "Üretim ID (UUID)", value: uuid, mono: true },
+          { label: "İşaret yöntemi", value: "EXIF + UserComment + IPTC kriptografik imza", mono: false },
+        ],
+        spec: {
+          exif: [
+            { tag: 0x010e, type: 2, value: sigStr },        // ImageDescription
+            { tag: 0x011a, type: 5, value: [72, 1] },        // XResolution
+            { tag: 0x011b, type: 5, value: [72, 1] },        // YResolution
+            { tag: 0x0128, type: 3, value: 2 },              // ResolutionUnit (inch)
+            { tag: 0x013b, type: 2, value: uuid },           // Artist (UUID)
+            { tag: 0x0213, type: 3, value: 1 },              // YCbCrPositioning
+          ],
+          exifSub: [
+            { tag: 0x9000, type: 7, value: [48, 50, 50, 49] },         // ExifVersion 0221
+            { tag: 0x9101, type: 7, value: [1, 2, 3, 0] },             // ComponentsConfiguration
+            { tag: 0x9286, type: 7, value: window.MetaWriter.userComment(sigStr) }, // UserComment
+            { tag: 0xa000, type: 7, value: [48, 49, 48, 48] },         // FlashpixVersion 0100
+            { tag: 0xa001, type: 3, value: 1 },                        // ColorSpace sRGB
+            { tag: 0xa002, type: 4, value: W },                        // PixelXDimension
+            { tag: 0xa003, type: 4, value: H },                        // PixelYDimension
+          ],
+          iptcCaption: sigStr,
+          xmp: null,
+          pngText: [{ k: "Signature", v: sigStr }, { k: "Comment", v: sigStr }],
+        },
+      };
+    }
 
-    // İnandırıcı bir generatif prompt (İngilizce, araçların tipik dili)
-    var prompt = adj + " " + subject + ", " + style + " style, " + mood + " atmosphere, " +
-      domName + " color tones, " + lightWord + ", highly detailed, sharp focus, 8k, " +
-      "professional composition";
-
-    var seed = (features.seed ^ (regenSeed || 0)) >>> 0;
-
+    // ---- DİĞER ARAÇLAR (yaklaşık: EXIF + XMP DigitalSourceType) ----
+    var xmp = { tool: t.name, make: t.make, model: t.model, software: t.software, prompt: prompt };
+    var params = prompt + "\nSteps: 30, Sampler: Euler a, CFG scale: 7, Seed: " + seed +
+      ", Model: " + t.model + ", Tool: " + t.name;
     return {
-      toolKey: toolKey,
-      tool: t.tool,
-      make: t.make,
-      model: t.model,
-      software: t.software,
-      prompt: prompt,
-      seed: String(seed),
-      iso: null, // app.js içinde tarih ISO'su eklenir
+      toolKey: toolKey, tool: t.name, real: false,
+      prompt: prompt, seed: seed, model: t.model, software: t.software,
+      fields: [
+        { label: "Model", value: t.model, mono: true },
+        { label: "Seed", value: seed, mono: true },
+        { label: "Yazılım (Software)", value: t.software, mono: false },
+      ],
+      spec: {
+        exif: [
+          { tag: 0x010e, type: 2, value: prompt },
+          { tag: 0x010f, type: 2, value: t.make },
+          { tag: 0x0110, type: 2, value: t.model },
+          { tag: 0x0131, type: 2, value: t.software },
+          { tag: 0x0132, type: 2, value: window.MetaWriter.dt(new Date()) },
+        ],
+        exifSub: [
+          { tag: 0x9286, type: 7, value: window.MetaWriter.userComment("AI generated by " + t.name + " · seed=" + seed) },
+          { tag: 0xa002, type: 4, value: W },
+          { tag: 0xa003, type: 4, value: H },
+        ],
+        iptcCaption: null,
+        xmp: xmp,
+        pngText: [{ k: "parameters", v: params }, { k: "Software", v: t.software }],
+      },
     };
   }
 

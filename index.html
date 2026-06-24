@@ -94,10 +94,7 @@
                 <span class="prov-badge">AI ÜRETİMİ</span>
                 <span id="provTool" class="prov-tool"></span>
               </div>
-              <div class="prov-grid">
-                <div><label>Model</label><span id="provModel" class="mono"></span></div>
-                <div><label>Seed</label><span id="provSeed" class="mono"></span></div>
-              </div>
+              <div id="provFields" class="prov-fields"></div>
               <div class="field">
                 <label>Üretim prompt'u <span class="conf">(gömülecek)</span></label>
                 <div class="val small mono" id="provPrompt"></div>
@@ -106,7 +103,7 @@
               <button id="embedBtn" class="btn-primary btn-big" type="button">
                 ⬇ AI metadata gömülü fotoğrafı indir
               </button>
-              <p class="prov-note">EXIF + XMP (IPTC <code>DigitalSourceType</code>) gömülür. PNG'lerde ayrıca <code>parameters</code> chunk'ı.</p>
+              <p id="provNote" class="prov-note"></p>
               <details id="verifyBox" class="verify-box hidden">
                 <summary>✓ Gömülen metadata'yı doğrula</summary>
                 <pre id="verifyOut"></pre>

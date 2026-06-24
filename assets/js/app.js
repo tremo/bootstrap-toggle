@@ -156,10 +156,26 @@
   function renderProvenance() {
     var toolKey = $("toolSelect").value;
     current.prov = MetaGen.provenance(current.features, toolKey, regenCount);
-    $("provTool").textContent = current.prov.tool;
-    $("provModel").textContent = current.prov.model;
-    $("provSeed").textContent = current.prov.seed;
-    $("provPrompt").textContent = current.prov.prompt;
+    var p = current.prov;
+    $("provTool").textContent = p.tool;
+    $("provPrompt").textContent = p.prompt;
+
+    var fields = $("provFields");
+    fields.innerHTML = "";
+    p.fields.forEach(function (f) {
+      var d = document.createElement("div");
+      d.innerHTML = "<label>" + f.label + "</label><span" +
+        (f.mono ? ' class="mono"' : "") + "></span>";
+      d.querySelector("span").textContent = f.value;
+      fields.appendChild(d);
+    });
+
+    $("provNote").innerHTML = p.real
+      ? "✓ <strong>Grok yapısının birebir taklidi:</strong> EXIF <code>ImageDescription</code> + " +
+        "<code>UserComment</code> + IPTC alanına <code>Signature: …</code>, <code>Artist</code>'e UUID gömülür. " +
+        "İmza rastgeledir; görüntüleyicide Grok çıktısıyla aynı görünür ama xAI anahtarıyla doğrulanmaz."
+      : "Yaklaşık yapı: EXIF (Make/Model/Software) + XMP <code>DigitalSourceType=trainedAlgorithmicMedia</code>" +
+        ", PNG'lerde <code>parameters</code> chunk'ı.";
     $("verifyBox").classList.add("hidden");
   }
 
@@ -170,20 +186,9 @@
   // ---- AI metadata'yı gerçek dosyaya göm + indir ----
   $("embedBtn").addEventListener("click", function () {
     if (!current.buffer || !current.prov) return;
-    var now = new Date();
-    var params = {
-      tool: current.prov.tool,
-      make: current.prov.make,
-      model: current.prov.model,
-      software: current.prov.software,
-      prompt: current.prov.prompt,
-      seed: current.prov.seed,
-      iso: now.toISOString(),
-      date: now,
-    };
     var res;
     try {
-      res = MetaWriter.embed(current.buffer, current.mime, params);
+      res = MetaWriter.embed(current.buffer, current.mime, current.prov.spec);
     } catch (e) {
       toast(e.message || "Gömme başarısız");
       return;
@@ -196,44 +201,45 @@
     a.click();
     URL.revokeObjectURL(a.href);
     toast("Gömüldü ve indirildi ✓");
-    verifyEmbedded(res.bytes, params);
+    verifyEmbedded(res.bytes);
   });
 
   // indirilen baytları geri okuyup gömülen metadata'yı doğrula
-  function verifyEmbedded(bytes, params) {
+  function verifyEmbedded(bytes) {
     var ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    var lines = [];
+    var p = current.prov, lines = [];
     var exif = window.SimpleEXIF ? SimpleEXIF.parse(ab) : {};
-    if (exif && (exif.Software || exif.Make)) {
-      lines.push("EXIF.Make      = " + (exif.Make || "—"));
-      lines.push("EXIF.Model     = " + (exif.Model || "—"));
-      lines.push("EXIF.Software  = " + (exif.Software || "—"));
-      if (exif.DateTime) lines.push("EXIF.DateTime  = " + exif.DateTime);
-    }
-    // XMP / parameters metnini ham bayt içinde ara
-    var txt = "";
-    var u8 = new Uint8Array(ab);
+    var txt = "", u8 = new Uint8Array(ab);
     for (var i = 0; i < u8.length; i++) txt += String.fromCharCode(u8[i]);
-    var hasXmp = txt.indexOf("DigitalSourceType") !== -1;
-    var hasParams = txt.indexOf("trainedAlgorithmicMedia") !== -1;
-    lines.push("XMP DigitalSourceType = " + (hasXmp ? "✓ var" : "yok"));
-    lines.push("AI işareti (trainedAlgorithmicMedia) = " + (hasParams ? "✓ var" : "yok"));
-    lines.push("prompt gömülü = " + (txt.indexOf(MetaWriter.ascii(params.prompt).slice(0, 16)) !== -1 ||
-      txt.indexOf(params.prompt.slice(0, 16)) !== -1 ? "✓ evet" : "—"));
 
+    if (p.real) {
+      lines.push("EXIF.ImageDescription = " + (exif.ImageDescription || "—"));
+      lines.push("EXIF.Artist (UUID)    = " + (exif.Artist || "—"));
+      lines.push("UserComment imzası    = " + (txt.indexOf(p.signature.slice(0, 24)) !== -1 ? "✓ var" : "yok"));
+      lines.push("IPTC (APP13) imzası   = " + ((txt.match(/Signature: /g) || []).length >= 2 ? "✓ var" : "yok"));
+      lines.push("");
+      lines.push("⚠ İmza rastgeledir — xAI açık anahtarıyla doğrulanmaz.");
+    } else {
+      lines.push("EXIF.Make     = " + (exif.Make || "—"));
+      lines.push("EXIF.Model    = " + (exif.Model || "—"));
+      lines.push("EXIF.Software = " + (exif.Software || "—"));
+      lines.push("XMP DigitalSourceType    = " + (txt.indexOf("DigitalSourceType") !== -1 ? "✓ var" : "yok"));
+      lines.push("trainedAlgorithmicMedia  = " + (txt.indexOf("trainedAlgorithmicMedia") !== -1 ? "✓ var" : "yok"));
+    }
     $("verifyOut").textContent = lines.join("\n");
     $("verifyBox").classList.remove("hidden");
   }
 
   function toExport(m) {
     var prov = current.prov || {};
+    var ai = prov.real
+      ? { tool: prov.tool, method: "cryptographic signature (EXIF/UserComment/IPTC)",
+          signature: prov.signature, generation_uuid: prov.uuid, prompt: prov.prompt }
+      : { tool: prov.tool, model: prov.model, software: prov.software,
+          prompt: prov.prompt, seed: prov.seed, digital_source_type: "trainedAlgorithmicMedia" };
     return {
       generator: "MetaForge",
-      ai_provenance: {
-        tool: prov.tool, make: prov.make, model: prov.model,
-        software: prov.software, prompt: prov.prompt, seed: prov.seed,
-        digital_source_type: "trainedAlgorithmicMedia",
-      },
+      ai_provenance: ai,
       generated_at: new Date().toISOString(),
       source_file: current.fileName,
       title: m.title,

@@ -12,6 +12,7 @@
     0x011a: "XResolution",
     0x0131: "Software",
     0x0132: "DateTime",
+    0x013b: "Artist",
     0x829a: "ExposureTime",
     0x829d: "FNumber",
     0x8827: "ISO",

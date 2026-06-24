@@ -88,27 +88,38 @@
     } catch (e) { return null; }
   }
 
-  function parse(arrayBuffer) {
-    var out = {};
-    try {
-      var view = new DataView(arrayBuffer);
-      if (view.getUint16(0) !== 0xffd8) return out; // not JPEG
-
+  // JPEG APP1 ("Exif\0\0") veya PNG ("eXIf" chunk) içinden TIFF başlangıcını bul
+  function findTiff(view) {
+    var len = view.byteLength;
+    if (view.getUint16(0) === 0xffd8) { // JPEG
       var offset = 2;
-      var len = view.byteLength;
-      var app1 = -1;
       while (offset < len - 1) {
         if (view.getUint8(offset) !== 0xff) break;
         var marker = view.getUint8(offset + 1);
         var segLen = view.getUint16(offset + 2);
-        if (marker === 0xe1) { app1 = offset + 4; break; }
+        if (marker === 0xe1 && view.getUint32(offset + 4) === 0x45786966) return offset + 10; // "Exif\0\0"
         offset += 2 + segLen;
       }
-      if (app1 < 0) return out;
+      return -1;
+    }
+    if (view.getUint32(0) === 0x89504e47) { // PNG
+      var p = 8;
+      while (p < len) {
+        var clen = view.getUint32(p, false);
+        if (view.getUint32(p + 4, false) === 0x65584966) return p + 8; // "eXIf"
+        p += 12 + clen;
+      }
+      return -1;
+    }
+    return -1;
+  }
 
-      // "Exif\0\0"
-      if (view.getUint32(app1) !== 0x45786966) return out;
-      var tiff = app1 + 6;
+  function parse(arrayBuffer) {
+    var out = {};
+    try {
+      var view = new DataView(arrayBuffer);
+      var tiff = findTiff(view);
+      if (tiff < 0) return out;
       var byteOrder = view.getUint16(tiff);
       var little = byteOrder === 0x4949;
 

@@ -218,19 +218,22 @@
     return t;
   })();
   function crc32(bytes) { var c = 0xffffffff; for (var i = 0; i < bytes.length; i++) c = CRC[(c ^ bytes[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
-  function itxtChunk(keyword, text) {
-    var kw = utf8(keyword), tx = utf8(text);
-    var data = new Uint8Array(kw.length + 5 + tx.length), i = 0, j;
-    for (j = 0; j < kw.length; j++) data[i++] = kw[j];
-    data[i++] = 0; data[i++] = 0; data[i++] = 0; data[i++] = 0; data[i++] = 0;
-    for (j = 0; j < tx.length; j++) data[i++] = tx[j];
-    var type = utf8("iTXt");
+  function makeChunk(typeStr, data) {
+    var type = utf8(typeStr);
     var chunk = new Uint8Array(8 + data.length + 4), dv = new DataView(chunk.buffer);
     dv.setUint32(0, data.length, false);
     chunk.set(type, 4); chunk.set(data, 8);
     var crcIn = new Uint8Array(4 + data.length); crcIn.set(type, 0); crcIn.set(data, 4);
     dv.setUint32(8 + data.length, crc32(crcIn), false);
     return chunk;
+  }
+  function itxtChunk(keyword, text) {
+    var kw = utf8(keyword), tx = utf8(text);
+    var data = new Uint8Array(kw.length + 5 + tx.length), i = 0, j;
+    for (j = 0; j < kw.length; j++) data[i++] = kw[j];
+    data[i++] = 0; data[i++] = 0; data[i++] = 0; data[i++] = 0; data[i++] = 0;
+    for (j = 0; j < tx.length; j++) data[i++] = tx[j];
+    return makeChunk("iTXt", data);
   }
   function injectPng(buf, spec) {
     var src = new Uint8Array(buf);
@@ -244,7 +247,11 @@
       if (type === "IHDR") { ihdrEnd = end; break; }
       off = end;
     }
-    var chunks = (spec.pngText || []).map(function (t) { return itxtChunk(t.k, t.v); });
+    var chunks = [];
+    // PNG'de native EXIF yok; EXIF akışını standart eXIf chunk'ı içine göm
+    // (JPEG ile birebir aynı TIFF: Grok imzası, Artist UUID, UserComment...)
+    if (spec.exif && spec.exif.length) chunks.push(makeChunk("eXIf", buildTIFF(spec.exif, spec.exifSub)));
+    (spec.pngText || []).forEach(function (t) { chunks.push(itxtChunk(t.k, t.v)); });
     if (spec.xmp) chunks.push(itxtChunk("XML:com.adobe.xmp", buildXmpPacket(spec.xmp)));
     var add = chunks.reduce(function (a, c) { return a + c.length; }, 0);
     var out = new Uint8Array(src.length + add);

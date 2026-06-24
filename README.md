@@ -16,7 +16,12 @@ statik bir uygulama. Sunucu yok, bağımlılık yok — GitHub Pages'te doğruda
    - **EXIF:** `Make` / `Model` / `Software` / `DateTime` / `ImageDescription`
    - **XMP:** `xmp:CreatorTool`, `dc:description`, ve AI içeriğinin standart işareti
      olan IPTC `Iptc4xmpExt:DigitalSourceType = trainedAlgorithmicMedia`
-   - **PNG'lerde** ayrıca AUTOMATIC1111 tarzı `parameters` text chunk'ı (prompt, seed, model)
+   - **PNG'lerde** EXIF native olmadığı için aynı TIFF akışı standart `eXIf`
+     chunk'ına gömülür; ayrıca text (iTXt) chunk'ları eklenir. Böylece Grok modu
+     JPEG ve PNG'de **birebir aynı** köken yapısını üretir.
+
+Varsayılan araç **Grok**'tur ve gerçek bir Grok JPEG'i incelenerek alan
+yapısı (imza + UUID + IPTC) birebir taklit edilir.
 4. **"AI metadata gömülü fotoğrafı indir"** ile değiştirilmiş dosyayı al; uygulama
    gömülen metadata'yı geri okuyup doğrular.
 

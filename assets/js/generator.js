@@ -272,7 +272,8 @@
       // ---- GROK: gerçek yapının birebir taklidi ----
       // ImageDescription + UserComment + IPTC caption => "Signature: <base64>"
       // Artist => üretim UUID'si. Make/Model/Software/XMP YOK.
-      var sig = base64(randBytes(rng, 160));          // ~160 baytlık imza (Grok ile aynı uzunluk)
+      // Gerçek Grok imzaları değişken uzunlukta (gözlenen: 144–160 bayt) -> taklit et
+      var sig = base64(randBytes(rng, 144 + Math.floor(rng() * 24)));
       var sigStr = "Signature: " + sig;
       var uuid = uuidv4(rng);
       return {

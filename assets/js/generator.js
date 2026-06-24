@@ -216,5 +216,49 @@
     return parts.join(" · ");
   }
 
-  global.MetaGen = { analyze: analyze, generate: generate };
+  // --- AI araç ön ayarları (gömülecek köken bilgisi) ---
+  var TOOLS = {
+    grok: { tool: "Grok Imagine (xAI)", make: "xAI", model: "Aurora", software: "Grok Imagine v2 (xAI)" },
+    dalle: { tool: "DALL·3 (OpenAI)", make: "OpenAI", model: "dall-e-3", software: "OpenAI DALL-E 3" },
+    midjourney: { tool: "Midjourney", make: "Midjourney Inc.", model: "v6.1", software: "Midjourney v6.1" },
+    sd: { tool: "Stable Diffusion", make: "Stability AI", model: "SDXL 1.0", software: "AUTOMATIC1111 / Stable Diffusion" },
+    imagen: { tool: "Google Imagen", make: "Google", model: "imagen-3.0", software: "Google Imagen 3" },
+    firefly: { tool: "Adobe Firefly", make: "Adobe", model: "Firefly Image 3", software: "Adobe Firefly" },
+  };
+
+  // analiz + seçilen araçtan "AI üretmiş gibi" köken parametreleri üretir
+  function provenance(features, toolKey, regenSeed) {
+    var t = TOOLS[toolKey] || TOOLS.grok;
+    var rng = mulberry32((features.seed ^ (regenSeed || 0) ^ 0x9e3779b9) >>> 0);
+
+    var subject = pick(rng, SUBJECTS);
+    var style = pick(rng, STYLES);
+    var adj = pick(rng, ADJ);
+    var moodBank = features.temp === "warm" ? MOODS_WARM
+      : features.temp === "cool" ? MOODS_COOL : MOODS_NEUTRAL;
+    var mood = pick(rng, moodBank);
+    var domName = colorName(features.palette[0]);
+    var lightWord = features.brightness > 0.62 ? "soft natural light"
+      : features.brightness < 0.32 ? "dramatic low-key lighting" : "balanced lighting";
+
+    // İnandırıcı bir generatif prompt (İngilizce, araçların tipik dili)
+    var prompt = adj + " " + subject + ", " + style + " style, " + mood + " atmosphere, " +
+      domName + " color tones, " + lightWord + ", highly detailed, sharp focus, 8k, " +
+      "professional composition";
+
+    var seed = (features.seed ^ (regenSeed || 0)) >>> 0;
+
+    return {
+      toolKey: toolKey,
+      tool: t.tool,
+      make: t.make,
+      model: t.model,
+      software: t.software,
+      prompt: prompt,
+      seed: String(seed),
+      iso: null, // app.js içinde tarih ISO'su eklenir
+    };
+  }
+
+  global.MetaGen = { analyze: analyze, generate: generate, provenance: provenance, TOOLS: TOOLS };
 })(window);

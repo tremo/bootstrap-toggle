@@ -27,11 +27,12 @@
 
   <main class="container">
     <section class="hero">
-      <h1>Fotoğrafın için <span class="gradient-text">AI üretimi</span> metadata</h1>
+      <h1>Fotoğrafını <span class="gradient-text">AI üretmiş gibi</span> göster</h1>
       <p class="subtitle">
-        Bir görsel yükle; uygulama görseli tarayıcında analiz edip
-        <strong>yapay zeka tarafından üretilmiş gibi</strong> başlık, açıklama, alt metin,
-        etiketler, renk paleti ve teknik metadata oluştursun. Hiçbir veri sunucuya gönderilmez.
+        Bir görsel yükle; uygulama dosyanın içine — Grok, DALL·E, Midjourney gibi araçların
+        kullandığı standartla — <strong>"yapay zeka tarafından üretildi"</strong> köken metadata'sını
+        (EXIF + XMP) gömsün ve değiştirilmiş fotoğrafı indirmene izin versin. Her şey tarayıcında olur,
+        hiçbir veri sunucuya gitmez.
       </p>
     </section>
 
@@ -70,7 +71,14 @@
             <h2>
               <span class="ai-spark">✦</span> AI Metadata
             </h2>
-            <div class="model-pill" id="modelPill">forge-vision-2.1</div>
+            <select id="toolSelect" class="tool-select" aria-label="AI aracı">
+              <option value="grok">Grok Imagine (xAI)</option>
+              <option value="dalle">DALL·E 3 (OpenAI)</option>
+              <option value="midjourney">Midjourney v6.1</option>
+              <option value="sd">Stable Diffusion XL</option>
+              <option value="imagen">Google Imagen 3</option>
+              <option value="firefly">Adobe Firefly</option>
+            </select>
           </div>
 
           <!-- Analyzing state -->
@@ -81,6 +89,30 @@
 
           <!-- Result state -->
           <div id="result" class="result hidden">
+            <div class="prov-card">
+              <div class="prov-head">
+                <span class="prov-badge">AI ÜRETİMİ</span>
+                <span id="provTool" class="prov-tool"></span>
+              </div>
+              <div class="prov-grid">
+                <div><label>Model</label><span id="provModel" class="mono"></span></div>
+                <div><label>Seed</label><span id="provSeed" class="mono"></span></div>
+              </div>
+              <div class="field">
+                <label>Üretim prompt'u <span class="conf">(gömülecek)</span></label>
+                <div class="val small mono" id="provPrompt"></div>
+                <button class="copy" data-target="provPrompt" type="button">kopyala</button>
+              </div>
+              <button id="embedBtn" class="btn-primary btn-big" type="button">
+                ⬇ AI metadata gömülü fotoğrafı indir
+              </button>
+              <p class="prov-note">EXIF + XMP (IPTC <code>DigitalSourceType</code>) gömülür. PNG'lerde ayrıca <code>parameters</code> chunk'ı.</p>
+              <details id="verifyBox" class="verify-box hidden">
+                <summary>✓ Gömülen metadata'yı doğrula</summary>
+                <pre id="verifyOut"></pre>
+              </details>
+            </div>
+
             <div class="field field-title">
               <label>Başlık</label>
               <div class="val" id="outTitle"></div>
@@ -149,9 +181,11 @@
 
     <section class="disclaimer">
       <p>
-        ⚠️ <strong>Not:</strong> Üretilen başlık, açıklama ve etiketler gerçek bir bulut yapay zekâ
-        servisi tarafından değil, görselin renk/parlaklık/oran analizine dayanan tarayıcı içi bir
-        motorla <em>yapay zeka üretmiş gibi</em> oluşturulur. Eğlence ve demo amaçlıdır.
+        ⚠️ <strong>Not:</strong> Bu araç gerçek bir fotoğrafa, sanki bir AI görüntü üreticisi
+        tarafından oluşturulmuş gibi köken metadata'sı gömer. Üretilen başlık/prompt gerçek bir
+        bulut AI servisinden değil, görselin renk/parlaklık/oran analizine dayanan tarayıcı içi bir
+        motordan gelir. <strong>Eğitim, test (ör. AI-içerik dedektörleri) ve demo amaçlıdır;</strong>
+        içeriğin kaynağı hakkında başkalarını yanıltmak için kullanma.
       </p>
     </section>
   </main>
@@ -166,6 +200,7 @@
 
   <script src="assets/js/exif.js"></script>
   <script src="assets/js/generator.js"></script>
+  <script src="assets/js/metawriter.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

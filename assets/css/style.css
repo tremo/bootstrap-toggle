@@ -304,6 +304,42 @@ html, body {
 }
 .sep { margin: 0 8px; }
 
+/* Araç seçici */
+.tool-select {
+  font-family: var(--mono); font-size: 12px;
+  color: var(--accent-2); background: rgba(40, 224, 200, 0.06);
+  border: 1px solid rgba(40, 224, 200, 0.3); border-radius: 8px;
+  padding: 5px 10px; cursor: pointer;
+}
+.tool-select option { background: var(--bg-2); color: var(--text); }
+
+/* Köken (provenance) kartı */
+.prov-card {
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.12), rgba(40, 224, 200, 0.06));
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: 14px; padding: 16px; margin-bottom: 22px;
+}
+.prov-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.prov-badge {
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-3));
+  padding: 4px 10px; border-radius: 6px;
+}
+.prov-tool { font-weight: 600; font-size: 15px; }
+.prov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.prov-grid label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 3px; }
+.prov-grid .mono { font-family: var(--mono); font-size: 13px; color: var(--accent-2); }
+.btn-big { width: 100%; padding: 13px; font-size: 14px; margin-top: 6px; }
+.prov-note { font-size: 11.5px; color: var(--muted); margin: 10px 0 0; line-height: 1.5; }
+.prov-note code { font-family: var(--mono); color: var(--accent-2); }
+.verify-box { margin-top: 12px; }
+.verify-box summary { cursor: pointer; color: var(--accent-2); font-size: 12.5px; }
+.verify-box pre {
+  background: #060713; border: 1px solid var(--panel-border); border-radius: 8px;
+  padding: 12px; margin-top: 8px; font-family: var(--mono); font-size: 11.5px;
+  color: #b8f3ea; white-space: pre-wrap; word-break: break-word;
+}
+
 .hidden { display: none !important; }
 
 /* Toast */

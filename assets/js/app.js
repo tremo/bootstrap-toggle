@@ -14,7 +14,7 @@
   var progBar = $("progBar");
   var logList = $("logList");
 
-  var current = { features: null, exif: null, meta: null, fileName: "" };
+  var current = { features: null, exif: null, meta: null, prov: null, fileName: "", buffer: null, mime: "" };
   var regenCount = 0;
 
   // ---- Yükleme olayları ----
@@ -57,13 +57,15 @@
       return;
     }
     current.fileName = file.name || "image";
+    current.mime = file.type || "";
     dropzone.classList.add("hidden");
     workspace.classList.remove("hidden");
     result.classList.add("hidden");
 
-    // EXIF (yalnızca JPEG'lerde anlamlı)
+    // Dosyanın ham baytları (hem EXIF okuma hem de metadata gömme için saklanır)
     var efr = new FileReader();
     efr.onload = function () {
+      current.buffer = efr.result;
       current.exif = window.SimpleEXIF ? SimpleEXIF.parse(efr.result) : {};
       renderExif(current.exif, file);
     };
@@ -144,13 +146,94 @@
       pal.appendChild(sw);
     });
 
+    renderProvenance();
+
     $("jsonOut").textContent = JSON.stringify(toExport(m), null, 2);
     result.classList.remove("hidden");
   }
 
+  // seçilen AI aracına göre köken (provenance) alanlarını üret + göster
+  function renderProvenance() {
+    var toolKey = $("toolSelect").value;
+    current.prov = MetaGen.provenance(current.features, toolKey, regenCount);
+    $("provTool").textContent = current.prov.tool;
+    $("provModel").textContent = current.prov.model;
+    $("provSeed").textContent = current.prov.seed;
+    $("provPrompt").textContent = current.prov.prompt;
+    $("verifyBox").classList.add("hidden");
+  }
+
+  $("toolSelect").addEventListener("change", function () {
+    if (current.features) renderProvenance();
+  });
+
+  // ---- AI metadata'yı gerçek dosyaya göm + indir ----
+  $("embedBtn").addEventListener("click", function () {
+    if (!current.buffer || !current.prov) return;
+    var now = new Date();
+    var params = {
+      tool: current.prov.tool,
+      make: current.prov.make,
+      model: current.prov.model,
+      software: current.prov.software,
+      prompt: current.prov.prompt,
+      seed: current.prov.seed,
+      iso: now.toISOString(),
+      date: now,
+    };
+    var res;
+    try {
+      res = MetaWriter.embed(current.buffer, current.mime, params);
+    } catch (e) {
+      toast(e.message || "Gömme başarısız");
+      return;
+    }
+    var blob = new Blob([res.bytes], { type: res.type });
+    var base = current.fileName.replace(/\.[^.]+$/, "");
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = base + ".ai-meta." + res.ext;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("Gömüldü ve indirildi ✓");
+    verifyEmbedded(res.bytes, params);
+  });
+
+  // indirilen baytları geri okuyup gömülen metadata'yı doğrula
+  function verifyEmbedded(bytes, params) {
+    var ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    var lines = [];
+    var exif = window.SimpleEXIF ? SimpleEXIF.parse(ab) : {};
+    if (exif && (exif.Software || exif.Make)) {
+      lines.push("EXIF.Make      = " + (exif.Make || "—"));
+      lines.push("EXIF.Model     = " + (exif.Model || "—"));
+      lines.push("EXIF.Software  = " + (exif.Software || "—"));
+      if (exif.DateTime) lines.push("EXIF.DateTime  = " + exif.DateTime);
+    }
+    // XMP / parameters metnini ham bayt içinde ara
+    var txt = "";
+    var u8 = new Uint8Array(ab);
+    for (var i = 0; i < u8.length; i++) txt += String.fromCharCode(u8[i]);
+    var hasXmp = txt.indexOf("DigitalSourceType") !== -1;
+    var hasParams = txt.indexOf("trainedAlgorithmicMedia") !== -1;
+    lines.push("XMP DigitalSourceType = " + (hasXmp ? "✓ var" : "yok"));
+    lines.push("AI işareti (trainedAlgorithmicMedia) = " + (hasParams ? "✓ var" : "yok"));
+    lines.push("prompt gömülü = " + (txt.indexOf(MetaWriter.ascii(params.prompt).slice(0, 16)) !== -1 ||
+      txt.indexOf(params.prompt.slice(0, 16)) !== -1 ? "✓ evet" : "—"));
+
+    $("verifyOut").textContent = lines.join("\n");
+    $("verifyBox").classList.remove("hidden");
+  }
+
   function toExport(m) {
+    var prov = current.prov || {};
     return {
-      generator: "MetaForge · forge-vision-2.1",
+      generator: "MetaForge",
+      ai_provenance: {
+        tool: prov.tool, make: prov.make, model: prov.model,
+        software: prov.software, prompt: prov.prompt, seed: prov.seed,
+        digital_source_type: "trainedAlgorithmicMedia",
+      },
       generated_at: new Date().toISOString(),
       source_file: current.fileName,
       title: m.title,

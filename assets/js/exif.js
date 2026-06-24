@@ -5,6 +5,7 @@
   "use strict";
 
   var TAGS = {
+    0x010e: "ImageDescription",
     0x010f: "Make",
     0x0110: "Model",
     0x0112: "Orientation",

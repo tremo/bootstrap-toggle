@@ -2,6 +2,7 @@
 // Prosedürel görünüm modeli (eller, kollar), geri tepme, sallanma, şarjör değiştirme, balistik.
 import * as THREE from 'three';
 import { clamp, lerp, DEG } from './util.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const WEAPONS = [
   { id: 'tp9', key: 'Digit1', name: 'Canik TP9 SF', cal: '9×19 mm Parabellum', type: 'pistol', mag: 18, reserve: 72, reserveMax: 108, rpm: 450, auto: false, modes: ['YARI OTOMATİK'], dmg: 34, pen: 0.55, v: 370, spreadHip: 1.5, spreadAds: 0.22, spreadMove: 1.1, bloom: 0.9, recoilP: 2.3, recoilY: 0.9, reload: 1.45, reloadEmpty: 1.85, adsZoom: 1.18, adsTime: 0.13, sway: 0.9, sound: 'pistol', falloff: [25, 70, 0.55], speed: 1.0, tracer: 0 },
@@ -12,8 +13,15 @@ export const WEAPONS = [
 
 function M(color, rough = 0.5, metal = 0.2, extra = {}) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra }); }
 
+const rbCache = new Map();
+function rbox(w, h, d) {
+  const k = `${w}_${h}_${d}`;
+  let g = rbCache.get(k);
+  if (!g) { g = new RoundedBoxGeometry(w, h, d, 2, Math.min(0.01, Math.min(w, h, d) * 0.28)); rbCache.set(k, g); }
+  return g;
+}
 function box(g, mat, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  const m = new THREE.Mesh(rbox(w, h, d), mat);
   m.position.set(x, y, z); m.rotation.set(rx, ry, rz);
   g.add(m); return m;
 }
@@ -35,11 +43,13 @@ export class WeaponSystem {
   constructor(game) {
     this.g = game;
     const T = game.T;
+    const micro = T.plaster.normal.clone(); micro.repeat.set(6, 6); micro.needsUpdate = true;
+    const n = (v) => new THREE.Vector2(v, v);
     this.mats = {
-      polymer: M(0x1c1d1f, 0.62, 0.05),
-      metal: M(0x2b2c2f, 0.35, 0.85),
-      dark: M(0x121314, 0.45, 0.6),
-      olive: M(0x3d4231, 0.6, 0.1),
+      polymer: M(0x1d1e20, 0.66, 0.05, { normalMap: micro, normalScale: n(0.35) }),
+      metal: M(0x303236, 0.32, 0.85, { normalMap: micro, normalScale: n(0.15) }),
+      dark: M(0x151618, 0.42, 0.65, { normalMap: micro, normalScale: n(0.2) }),
+      olive: M(0x3f4533, 0.62, 0.1, { normalMap: micro, normalScale: n(0.35) }),
       tan: M(0x8a7a5c, 0.7, 0.05),
       glass: M(0x0b1a2a, 0.05, 0.4, { envMapIntensity: 2 }),
       dot: new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }),
@@ -117,7 +127,7 @@ export class WeaponSystem {
       mag = new THREE.Group(); box(mag, m.dark, 0.024, 0.11, 0.035, 0, -0.06, 0.035, -0.3); gun.add(mag);
       muzzle = new THREE.Vector3(0, 0.03, -0.17);
       sightY = 0.061; sightZ = 0.02;
-      hipPos = new THREE.Vector3(0.15, -0.15, -0.4); adsPos = new THREE.Vector3(0, -sightY, -0.34);
+      hipPos = new THREE.Vector3(0.13, -0.11, -0.36); adsPos = new THREE.Vector3(0, -sightY, -0.34);
       handsR = [[0.26, -0.3, 0.2], [0.02, -0.05, 0.05]]; handsL = [[-0.2, -0.32, 0.15], [-0.015, -0.055, 0.03]];
     } else if (w.type === 'rifle' || w.type === 'shotgun') {
       const sh = w.type === 'shotgun';
@@ -455,7 +465,7 @@ export class WeaponSystem {
     this.vSun.color.copy(env.sun.color);
     this.vSun.intensity = env.sun.intensity * 0.9;
     this.vHemi.color.copy(env.hemi.color); this.vHemi.groundColor.copy(env.hemi.groundColor);
-    this.vHemi.intensity = env.hemi.intensity + extra;
+    this.vHemi.intensity = Math.max(0.12, env.hemi.intensity) + extra;
   }
 
   hudInfo() {

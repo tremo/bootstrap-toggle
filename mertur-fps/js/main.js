@@ -110,9 +110,22 @@ async function boot() {
   requestAnimationFrame(frame);
 }
 
+// uyarlanır çözünürlük: kare süresi uzun kalırsa piksel oranını düşür
+G.dynScale = 1;
 function applyPixelRatio() {
   const q = QUALITY[G.quality];
-  G.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pr));
+  G.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pr) * G.dynScale);
+}
+const perf = { acc: 0, n: 0, t: 0 };
+function adaptResolution(dt) {
+  perf.acc += dt; perf.n++; perf.t += dt;
+  if (perf.t < 3) return;
+  const avg = perf.acc / perf.n;
+  perf.acc = 0; perf.n = 0; perf.t = 0;
+  let s = G.dynScale;
+  if (avg > 0.036 && s > 0.55) s = Math.max(0.55, s - 0.15);
+  else if (avg < 0.018 && s < 1) s = Math.min(1, s + 0.1);
+  if (s !== G.dynScale) { G.dynScale = s; applyPixelRatio(); onResize(); }
 }
 function applyQuality() {
   const q = QUALITY[G.quality];
@@ -290,7 +303,7 @@ function frame(now) {
   const P = g.player;
   if (G.input.touch.active && G.input.hit('Escape') && g.running && !g.over) { if (g.paused) resume(); else pause(); }
   const active = g.running && !g.paused && !G.dbg.frozen;
-  if (active) g.update(dt);
+  if (active) { g.update(dt); if (!DEBUG) adaptResolution(dt); }
   else if (!g.running) {
     // menü arkası: yavaşça dönen havadan görünüm
     menuT += dt * 0.03;

@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mertur Savunması</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Saira+Stencil+One&display=swap">
+<style>
+/* Plan kâğıdı + mavi mürekkep (vaziyet planından) menü; oyun içi HUD sade beyaz */
+:root {
+  --paper: #ebe2cc;
+  --paper-2: #e2d7bd;
+  --ink: #2c4a95;
+  --ink-soft: #5f75b3;
+  --ink-faint: rgba(44, 74, 149, 0.16);
+  --rust: #b3462c;
+  --hud: #f3f1ea;
+  --hud-dim: rgba(243, 241, 234, 0.62);
+  --hud-shadow: 0 1px 2px rgba(0, 0, 0, 0.75), 0 0 10px rgba(0, 0, 0, 0.35);
+  --alert: #ff5a3c;
+  --ok: #8fd694;
+  --font-display: "Saira Stencil One", "Stencil", "Arial Black", sans-serif;
+  --font-ui: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; background: #0b0d10; overflow: hidden; }
+body { font-family: var(--font-ui); color: var(--hud); -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #0b0d10; touch-action: none; }
+.screen { position: fixed; inset: 0; z-index: 20; }
+button { font-family: var(--font-ui); cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+
+/* ---------- kâğıt ---------- */
+.paper {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(90deg, transparent 49.6%, rgba(90, 70, 40, 0.10) 50%, transparent 50.4%),
+    linear-gradient(0deg, transparent 49.6%, rgba(90, 70, 40, 0.08) 50%, transparent 50.4%),
+    radial-gradient(ellipse at 20% 10%, rgba(255, 255, 255, 0.35), transparent 60%),
+    radial-gradient(ellipse at 80% 90%, rgba(120, 90, 40, 0.12), transparent 60%),
+    repeating-linear-gradient(0deg, var(--ink-faint) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--ink-faint) 0 1px, transparent 1px 24px);
+  color: var(--ink);
+}
+
+/* ---------- yükleme ---------- */
+#loading { display: grid; place-items: center; padding: 16px; }
+#loading .box { width: min(560px, 100%); display: grid; gap: 14px; }
+.brand { font-family: var(--font-display); font-weight: 400; font-size: clamp(40px, 6.2vw, 80px); line-height: 0.9; letter-spacing: 0.03em; margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.brand small { display: block; font-family: var(--font-ui); font-weight: 600; font-size: clamp(15px, 2.4vw, 20px); letter-spacing: 0.18em; text-transform: uppercase; margin-top: 10px; color: var(--ink-soft); }
+.bar { height: 10px; border: 2px solid var(--ink); position: relative; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: repeating-linear-gradient(135deg, var(--ink) 0 6px, var(--ink-soft) 6px 12px); transition: width .2s; }
+#loadLabel { font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.04em; }
+#loadErr { font-family: var(--font-mono); font-size: 13px; color: var(--rust); white-space: pre-wrap; }
+
+/* ---------- menü ---------- */
+#menu { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); overflow: auto; }
+#menu .side { padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 18px; border-right: 2px solid var(--ink); min-width: 0; }
+#menu .plan { position: relative; min-width: 0; min-height: 320px; display: flex; flex-direction: column; padding: 20px 24px 16px; gap: 10px; }
+#menu .plan canvas { flex: 1; width: 100%; min-height: 260px; }
+.plan-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.plan-head h2 { font-family: var(--font-display); font-weight: 400; font-size: 26px; margin: 0; letter-spacing: 0.06em; }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 18px; font-family: var(--font-mono); font-size: 12px; }
+.legend b { display: inline-block; min-width: 18px; font-family: var(--font-display); font-weight: 400; font-size: 15px; }
+.brief { font-size: 17px; line-height: 1.35; margin: 0; max-width: 60ch; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+legend.lbl, .lbl { font-weight: 700; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); padding: 0; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { background: transparent; color: var(--ink); border: 2px solid var(--ink); padding: 6px 10px 5px; font-size: 16px; font-weight: 600; letter-spacing: 0.03em; }
+.seg button small { font-family: var(--font-mono); font-size: 11px; font-weight: 500; margin-left: 4px; opacity: 0.8; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+input[type="range"] { accent-color: var(--ink); flex: 1; min-width: 120px; }
+#timeVal { font-family: var(--font-mono); font-size: 15px; min-width: 128px; }
+.go { margin-top: 4px; background: var(--rust); color: #fff6ec; border: 0; padding: 14px 18px 12px; font-family: var(--font-display); font-size: 24px; letter-spacing: 0.06em; }
+.go:hover { filter: brightness(1.08); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 14px; align-items: baseline; }
+kbd { font-family: var(--font-mono); font-size: 11px; border: 1.5px solid var(--ink); padding: 0 4px; border-radius: 2px; white-space: nowrap; }
+.note { font-size: 13px; color: var(--ink-soft); margin: 0; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+.check input { accent-color: var(--ink); width: 16px; height: 16px; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; text-shadow: var(--hud-shadow); }
+#hud[hidden] { display: none !important; }
+.tl { position: absolute; left: 22px; top: calc(16px + env(safe-area-inset-top, 0px)); font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; display: grid; gap: 2px; }
+.tl .big { font-size: 22px; font-weight: 700; letter-spacing: 0.06em; }
+.tr { position: absolute; right: 22px; top: calc(16px + env(safe-area-inset-top, 0px)); text-align: right; display: grid; gap: 4px; }
+.clock { font-family: var(--font-mono); font-size: 15px; }
+.chips { display: flex; gap: 6px; justify-content: flex-end; }
+.chip { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--hud-dim); color: var(--hud-dim); }
+.chip.on { border-color: var(--ok); color: var(--ok); }
+#compass { position: absolute; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); width: min(440px, 60vw); height: 30px; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+#compass .strip { position: absolute; top: 0; left: 0; height: 100%; white-space: nowrap; font-family: var(--font-mono); font-size: 12px; }
+#compass .strip span { position: absolute; top: 12px; transform: translateX(-50%); color: var(--hud-dim); }
+#compass .strip span.card { color: var(--hud); font-weight: 600; font-size: 14px; top: 9px; }
+#compass .strip i { position: absolute; top: 2px; width: 1px; height: 7px; background: var(--hud-dim); }
+#compass .mark { position: absolute; left: 50%; top: 0; width: 2px; height: 10px; background: var(--hud); transform: translateX(-50%); }
+#compass .deg { position: absolute; left: 50%; bottom: -1px; transform: translateX(-50%); font-family: var(--font-mono); font-size: 10px; color: var(--hud-dim); display: none; }
+.bl { position: absolute; left: 22px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 6px; width: 240px; }
+.hp { display: flex; align-items: baseline; gap: 8px; }
+.hp .num { font-family: var(--font-mono); font-size: 30px; font-weight: 600; min-width: 64px; }
+.hp .lab { font-size: 13px; letter-spacing: 0.16em; color: var(--hud-dim); }
+.meter { height: 5px; background: rgba(255, 255, 255, 0.18); position: relative; }
+.meter i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--hud); }
+.meter.st i { background: #b8d6ff; }
+.meter.low i { background: var(--alert); }
+.small { font-size: 13px; letter-spacing: 0.08em; color: var(--hud-dim); text-transform: uppercase; }
+.br { position: absolute; right: 22px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); text-align: right; display: grid; gap: 2px; justify-items: end; }
+.wname { font-size: 20px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.cal { font-family: var(--font-mono); font-size: 12px; color: var(--hud-dim); }
+.ammo { font-family: var(--font-mono); font-weight: 600; font-size: 40px; line-height: 1; }
+.ammo small { font-size: 18px; color: var(--hud-dim); font-weight: 500; }
+.ammo.low { color: var(--alert); }
+#cross { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+#cross i { position: absolute; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); }
+#cross .t, #cross .b { width: 2px; height: 9px; left: -1px; }
+#cross .l, #cross .r { height: 2px; width: 9px; top: -1px; }
+#cross .c { width: 2px; height: 2px; left: -1px; top: -1px; }
+#hit { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; opacity: 0; transition: opacity 0.18s; }
+#hit::before, #hit::after { content: ""; position: absolute; left: 12px; top: -2px; width: 2px; height: 30px; background: #fff; transform: rotate(45deg); box-shadow: 0 0 2px #000; }
+#hit::after { transform: rotate(-45deg); }
+#hit.kill::before, #hit.kill::after { background: var(--alert); }
+#feed { position: absolute; right: 22px; bottom: calc(132px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 4px; justify-items: end; font-size: 15px; max-width: min(460px, 70vw); }
+#feed div { background: rgba(10, 12, 14, 0.45); padding: 2px 8px; animation: fade 4s forwards; }
+#feed .hs { color: #ffd27a; }
+@keyframes fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+#subs { position: absolute; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(560px, 56vw); text-align: center; display: grid; gap: 4px; font-size: 17px; }
+#subs div { background: rgba(8, 10, 12, 0.5); padding: 3px 10px; justify-self: center; animation: fade 4.5s forwards; }
+#subs .gr { font-family: var(--font-mono); font-size: 14px; color: #a9c4ff; margin-right: 6px; }
+#msg { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); text-align: center; display: grid; gap: 6px; width: min(700px, 92vw); }
+#msg .m1 { font-family: var(--font-display); font-size: clamp(26px, 4vw, 44px); letter-spacing: 0.06em; }
+#msg .m2 { font-size: 18px; letter-spacing: 0.06em; color: var(--hud-dim); }
+#dmg { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+#dmg i { position: absolute; left: -60px; top: -170px; width: 120px; height: 36px; border-top: 5px solid rgba(255, 50, 30, 0.85); border-radius: 50% 50% 0 0 / 100% 100% 0 0; transform-origin: 60px 170px; opacity: 0; transition: opacity 1.2s; }
+#nade { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 13px; color: var(--alert); letter-spacing: 0.1em; }
+#prompt { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); font-size: 16px; letter-spacing: 0.06em; }
+#scope { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
+#scope canvas { width: 100%; height: 100%; display: block; }
+#fps { position: absolute; left: 8px; bottom: 4px; font-family: var(--font-mono); font-size: 10px; color: var(--hud-dim); }
+
+/* ---------- duraklatma / bitiş ---------- */
+.dim { background: rgba(8, 10, 14, 0.72); display: grid; place-items: center; padding: 16px; overflow: auto; }
+.card { width: min(560px, 100%); display: grid; gap: 16px; padding: 24px; }
+.card h2 { font-family: var(--font-display); font-weight: 400; font-size: 36px; margin: 0; letter-spacing: 0.05em; }
+.card .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { background: transparent; color: var(--ink); border: 2px solid var(--ink); padding: 9px 14px 8px; font-size: 18px; font-weight: 700; letter-spacing: 0.04em; }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.stats div { border-top: 2px solid var(--ink); padding-top: 4px; }
+.stats b { display: block; font-family: var(--font-mono); font-size: 26px; font-weight: 600; }
+.stats span { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.set { display: grid; grid-template-columns: 150px 1fr auto; gap: 8px 12px; align-items: center; font-size: 16px; }
+.set output { font-family: var(--font-mono); font-size: 13px; min-width: 52px; text-align: right; }
+#mapview { display: grid; place-items: center; padding: 16px; background: rgba(8, 10, 14, 0.6); }
+#mapview .paper { width: min(980px, 100%); height: min(86vh, 700px); padding: 14px; display: grid; grid-template-rows: auto 1fr; gap: 8px; }
+#mapview canvas { width: 100%; height: 100%; min-height: 0; }
+
+/* dokunmatik */
+#touch { position: fixed; inset: 0; z-index: 11; pointer-events: none; }
+#touch .stick { position: absolute; left: 24px; bottom: 28px; width: 130px; height: 130px; border: 2px solid rgba(255, 255, 255, 0.35); border-radius: 50%; pointer-events: auto; touch-action: none; }
+#touch .stick i { position: absolute; left: 45px; top: 45px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); }
+#touch .look { position: absolute; right: 0; top: 0; width: 55%; height: 100%; pointer-events: auto; touch-action: none; }
+#touch .tb { position: absolute; pointer-events: auto; touch-action: none; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.5); background: rgba(10, 12, 14, 0.35); color: #fff; font-family: var(--font-ui); font-weight: 700; font-size: 13px; letter-spacing: 0.04em; }
+
+@media (max-width: 820px) {
+  #menu { grid-template-columns: 1fr; }
+  #menu .side { border-right: 0; border-bottom: 2px solid var(--ink); padding: 20px 16px; }
+  #menu .plan { padding: 16px; }
+  .bl { width: 180px; left: 16px; }
+  .br { right: 16px; }
+  .ammo { font-size: 30px; }
+  .tl { left: 16px; }
+  .tr { right: 16px; }
+  .set { grid-template-columns: 1fr auto; }
+  .set label { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { #feed div, #subs div { animation-duration: 6s; } .bar i { transition: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="scope" hidden><canvas id="scopeCanvas"></canvas></div>
+
+<div id="hud" hidden>
+  <div id="compass"><div class="strip" id="compStrip"></div><div class="mark"></div></div>
+  <div class="tl"><span class="big" id="hMode">DALGA 1</span><span id="hLeft">—</span><span id="hScore" class="small">Puan 0</span></div>
+  <div class="tr"><span class="clock" id="hClock">13:00 · Gündüz</span><div class="chips"><span class="chip" id="cNvg">GGD</span><span class="chip" id="cLight">FENER</span><span class="chip" id="cStance">AYAKTA</span></div></div>
+  <div id="cross"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="c"></i></div>
+  <div id="hit"></div>
+  <div id="dmg"></div>
+  <div id="feed"></div>
+  <div id="subs"></div>
+  <div id="msg"></div>
+  <div id="nade" hidden>▲ EL BOMBASI</div>
+  <div id="prompt"></div>
+  <div class="bl">
+    <div class="hp"><span class="num" id="hHp">100</span><span class="lab">SAĞLIK</span></div>
+    <div class="meter" id="mHp"><i style="width:100%"></i></div>
+    <div class="meter st" id="mSt"><i style="width:100%"></i></div>
+    <span class="small" id="hBand">Sargı ×3 · <kbd style="border-color:currentColor">H</kbd></span>
+  </div>
+  <div class="br">
+    <span class="wname" id="wName">MPT-76</span>
+    <span class="cal" id="wCal">7,62×51 mm NATO</span>
+    <span class="ammo" id="wAmmo">20<small> / 100</small></span>
+    <span class="small" id="wMode">OTOMATİK · El bombası ×3</span>
+  </div>
+  <div id="fps"></div>
+</div>
+
+<div id="loading" class="screen paper">
+  <div class="box">
+    <h1 class="brand">MERTUR<small>Palamutbükü Koyu · Datça (Muğla)</small></h1>
+    <div class="bar"><i id="loadBar"></i></div>
+    <span id="loadLabel">Hazırlanıyor…</span>
+    <span id="loadErr"></span>
+  </div>
+</div>
+
+<div id="menu" class="screen paper" hidden>
+  <div class="side">
+    <h1 class="brand">MERTUR<small>Savunma · 36°40′K 27°30′D</small></h1>
+    <p class="brief">Yunan özel harekât timleri (ΕΚΑΜ) Mertur Tatil Köyü'ne giriyor: botlar plaja çıkıyor, minibüsler sahil yolunda duruyor, bir tim yamaçtan sızıyor, nişancılar damlara saklanıyor. Köyü tut.</p>
+    <fieldset>
+      <legend class="lbl">Görev</legend>
+      <div class="seg" id="segMode">
+        <button type="button" data-v="waves" aria-pressed="true">Dalga savunması</button>
+        <button type="button" data-v="clear" aria-pressed="false">Temizlik <small>12 gizli</small></button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend class="lbl">Saat</legend>
+      <div class="seg" id="segTime">
+        <button type="button" data-v="6.25" aria-pressed="false">Şafak<small>06:15</small></button>
+        <button type="button" data-v="13" aria-pressed="true">Gündüz<small>13:00</small></button>
+        <button type="button" data-v="20.1" aria-pressed="false">Gün batımı<small>20:06</small></button>
+        <button type="button" data-v="23.6" aria-pressed="false">Gece<small>23:36</small></button>
+      </div>
+      <div class="row"><input type="range" id="timeRange" min="0" max="23.95" step="0.05" value="13" aria-label="Saat"><span id="timeVal">13:00 · Gündüz</span></div>
+      <label class="check"><input type="checkbox" id="timeFlow"> Zaman aksın (×30)</label>
+    </fieldset>
+    <fieldset>
+      <legend class="lbl">Zorluk</legend>
+      <div class="seg" id="segDiff">
+        <button type="button" data-v="easy" aria-pressed="false">Kolay</button>
+        <button type="button" data-v="normal" aria-pressed="true">Normal</button>
+        <button type="button" data-v="real" aria-pressed="false">Gerçekçi</button>
+      </div>
+    </fieldset>
+    <button class="go" id="btnStart" type="button">OPERASYONU BAŞLAT</button>
+    <p class="note" id="touchNote" hidden>Dokunmatik kontroller açık. En iyi deneyim klavye ve fare ile.</p>
+    <div class="keys">
+      <kbd>W A S D</kbd><span>Hareket · <kbd>Shift</kbd> koş · <kbd>Boşluk</kbd> zıpla</span>
+      <kbd>C / Ctrl</kbd><span>Çömel · <kbd>Q</kbd> <kbd>E</kbd> yana eğil</span>
+      <kbd>Sol tık</kbd><span>Ateş · <kbd>Sağ tık</kbd> nişan (dürbünde <kbd>Shift</kbd> nefes tut)</span>
+      <kbd>1 2 3 4</kbd><span>Tabanca · Tüfek · Pompalı · Keskin nişancı</span>
+      <kbd>R</kbd><span>Şarjör · <kbd>B</kbd> atış modu · <kbd>G</kbd> el bombası</span>
+      <kbd>N</kbd><span>Gece görüş · <kbd>F</kbd> fener · <kbd>H</kbd> sargı</span>
+      <kbd>T</kbd><span>Saati ilerlet · <kbd>M</kbd> vaziyet planı · <kbd>Esc</kbd> duraklat</span>
+    </div>
+  </div>
+  <div class="plan">
+    <div class="plan-head"><h2>VAZİYET PLANI 1/500</h2><span class="lbl">Palamut Bükü Koyu (Muğla)</span></div>
+    <canvas id="menuMap"></canvas>
+    <div class="legend">
+      <span><b>S</b> tipi (26 adet) apart dubleks</span>
+      <span><b>E</b> tipi (14 adet) apart</span>
+      <span><b>M</b> tipi (20 oda) motel</span>
+      <span><b>G</b> gazino, çarşı</span>
+      <span><b>D</b> demontabl podyum, bar</span>
+      <span><b>R</b> kabul (resepsiyon)</span>
+      <span><b>K</b> disko</span>
+      <span><b>T</b> umuma açık alanlar</span>
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="screen dim" hidden>
+  <div class="card paper">
+    <h2>DURAKLATILDI</h2>
+    <div class="set">
+      <label for="pTime">Saat</label><input type="range" id="pTime" min="0" max="23.95" step="0.05"><output id="pTimeO">13:00</output>
+      <label for="pSens">Fare hassasiyeti</label><input type="range" id="pSens" min="0.2" max="3" step="0.05" value="1"><output id="pSensO">1.00</output>
+      <label for="pFov">Görüş alanı</label><input type="range" id="pFov" min="70" max="110" step="1" value="95"><output id="pFovO">95°</output>
+      <label for="pVol">Ses</label><input type="range" id="pVol" min="0" max="1" step="0.05" value="0.8"><output id="pVolO">80%</output>
+      <label for="pQual">Grafik</label><input type="range" id="pQual" min="0" max="2" step="1" value="1"><output id="pQualO">Orta</output>
+    </div>
+    <label class="check"><input type="checkbox" id="pFlow"> Zaman aksın (×30)</label>
+    <div class="btns">
+      <button class="btn primary" id="btnResume" type="button">Devam et</button>
+      <button class="btn" id="btnQuit" type="button">Ana menü</button>
+    </div>
+  </div>
+</div>
+
+<div id="over" class="screen dim" hidden>
+  <div class="card paper">
+    <h2 id="overTitle">ETKİSİZ HALE GETİRİLDİN</h2>
+    <p class="brief" id="overText"></p>
+    <div class="stats" id="overStats"></div>
+    <div class="btns">
+      <button class="btn primary" id="btnAgain" type="button">Tekrar</button>
+      <button class="btn" id="btnMenu" type="button">Ana menü</button>
+    </div>
+  </div>
+</div>
+
+<div id="mapview" class="screen" hidden>
+  <div class="paper">
+    <div class="plan-head"><h2 style="font-family:var(--font-display);font-weight:400;margin:0">VAZİYET PLANI</h2><span class="lbl">M ile kapat</span></div>
+    <canvas id="bigMap"></canvas>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div class="look" id="tLook"></div>
+  <div class="stick" id="tStick"><i></i></div>
+  <button class="tb" id="tFire" style="right:26px;bottom:120px;width:74px;height:74px">ATEŞ</button>
+  <button class="tb" id="tAim" style="right:112px;bottom:34px">NİŞAN</button>
+  <button class="tb" id="tReload" style="right:26px;bottom:34px">ŞARJ</button>
+  <button class="tb" id="tJump" style="right:112px;bottom:112px">ZIPLA</button>
+  <button class="tb" id="tCrouch" style="right:198px;bottom:34px">ÇÖMEL</button>
+  <button class="tb" id="tSwap" style="right:26px;bottom:206px">SİLAH</button>
+  <button class="tb" id="tNade" style="right:198px;bottom:112px">BOMBA</button>
+  <button class="tb" id="tNvg" style="right:112px;bottom:190px">GGD</button>
+  <button class="tb" id="tPause" style="right:16px;top:70px;width:48px;height:48px">II</button>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

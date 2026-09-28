@@ -9,8 +9,27 @@ const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vect
 const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
+// GLB doğrudan; sunucu .glb vermiyorsa base64 metin kopyasından
+async function loadSoldierGLTF() {
+  const loader = new GLTFLoader();
+  const b64Only = document.querySelector('meta[name="mertur-assets"]')?.content === 'b64';
+  if (!b64Only) try {
+    const r = await fetch('assets/Soldier.glb');
+    if (r.ok) {
+      const buf = await r.arrayBuffer();
+      const m = new Uint8Array(buf, 0, 4);
+      if (m[0] === 0x67 && m[1] === 0x6c && m[2] === 0x54 && m[3] === 0x46) return loader.parseAsync(buf, '');
+    }
+  } catch (e) { /* yedek yola geç */ }
+  const txt = await (await fetch('assets/Soldier.glb.b64.txt')).text();
+  const bin = atob(txt.trim());
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return loader.parseAsync(u8.buffer, '');
+}
+
 export async function loadSoldierTemplate(T) {
-  const gltf = await new GLTFLoader().loadAsync('assets/Soldier.glb');
+  const gltf = await loadSoldierGLTF();
   const tpl = gltf.scene;
   tpl.traverse((o) => {
     if (o.isMesh) {

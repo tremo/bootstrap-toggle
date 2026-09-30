@@ -1,0 +1,28 @@
+{
+  "name": "mertur-savunmasi",
+  "productName": "Mertur Savunması",
+  "version": "1.0.0",
+  "description": "Palamutbükü'ndeki Mertur Tatil Köyü'nde geçen birinci şahıs nişancı oyunu",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "vendor": "node scripts/vendor.js",
+    "start": "npm run vendor && electron .",
+    "dist": "npm run vendor && electron-builder"
+  },
+  "dependencies": {
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "tr.mertur.savunmasi",
+    "productName": "Mertur Savunması",
+    "files": ["electron/**", "index.html", "js/**", "assets/**", "vendor/**", "package.json"],
+    "win": { "target": ["portable", "nsis"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.games" },
+    "linux": { "target": ["AppImage"], "category": "Game" }
+  }
+}

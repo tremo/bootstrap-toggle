@@ -63,3 +63,16 @@ Dokunmatik cihazlarda ekran üstü kumanda açılır; en iyi deneyim klavye ve f
 - Diğer tüm dokular, modeller ve sesler kod içinde üretilir.
 
 Senaryo tamamen kurgusaldır.
+
+## Masaüstü uygulaması (Electron)
+
+Tarayıcı olmadan, çevrimdışı çalışan sürüm. Node.js 18+ gerekir.
+
+```sh
+cd mertur-fps
+npm install
+npm start          # oyunu masaüstü penceresinde açar
+npm run dist       # bulunduğun sistem için kurulum dosyası üretir (dist/ klasörü)
+```
+
+F11 veya Alt+Enter tam ekranı açıp kapatır. Kabuk yalnızca vendor'a kopyalanmış three.js ve mevcut oyun dosyalarını yükler; oyun kodu tarayıcı sürümüyle aynıdır. Not: Electron kabuğu bu geliştirme ortamında (ekransız Linux) başlatılarak denenmedi; yalnızca bağımlılık kurulumu ve `npm run vendor` çalıştırıldı.
